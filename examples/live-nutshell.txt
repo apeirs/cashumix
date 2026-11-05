@@ -1,0 +1,59 @@
+# nutshell 0.20.2 using the cashumix gateway, testnut.cashu.space (fake Lightning backend)
+# Every request below went wallet -> cashumix serve -> nym-socks5-client -> Nym mixnet -> exit -> mint.
+
+$ cashumix serve --default testnut.cashu.space &
+$ export MINT_URL=http://127.0.0.1:3338/testnut.cashu.space
+
+$ cashu invoice 64
+Requesting invoice for 64 sat.
+Pay invoice to mint 64 sat:
+Invoice: lnbc640n1p4wc758dqqpp5seecdslst6gcg5lj363w7wf6a4yhkqc9t3ypmwj42jdelcxuswzssp59g4z52329g4z52329g4z52329g4z52329g4z52329g4z52329g4q9qrsgqcqzysya6tmcjcyp7gfp70zyg7wczcrcg9w8g5pl6vhg7fzlv0etj4zch9c36ga3hvwweuya6jfl4w20jx67l3dmm6tya0wvlysnw9x07v7esqtmg7uc
+You can use this command to check the invoice: cashu invoice 64 --id 01a1abbe-a2f8-76fd-8c37-7753d1f2ab43
+Checking invoice ... Invoice paid.
+Balance: 64 sat
+
+$ cashu send 21
+cashuBo2F0gaJhaUgBe8YEqqCOm2Fwg6NhYRBhc3hAYjI5...
+Balance: 43 sat
+
+# The token names the gateway as its mint; cashumix knows the real one.
+$ cashumix unwrap token.txt | cashumix decode - | grep mint
+      "mint": "https://testnut.cashu.space",
+
+$ cashumix checkstate token.txt
+Y                                                                   AMOUNT  KEYSET            STATE
+0230df8efc24225ac9a1c41889dbec68d35494f902cdec8f6db7ac21cbc3934617  16      017bc604aaa08e9b  UNSPENT
+023029075f5385355e2a1389eb88017e36476262eaa6a1d9ea961200661ba91966  4       017bc604aaa08e9b  UNSPENT
+0206ddc263b0a396176b3d42420cd3c49b1361ada663d8a8d4d510e20307119aa7  1       017bc604aaa08e9b  UNSPENT
+3 proofs at https://testnut.cashu.space: 21 sat UNSPENT (checked over the mixnet in 4.46s)
+
+# A second wallet receives the token (a NUT-03 swap, through the gateway)
+$ cashu -w recipient receive cashuB...
+Received 20 sat
+Balance: 20 sat
+
+$ cashumix checkstate token.txt
+Y                                                                   AMOUNT  KEYSET            STATE
+0230df8efc24225ac9a1c41889dbec68d35494f902cdec8f6db7ac21cbc3934617  16      017bc604aaa08e9b  SPENT
+023029075f5385355e2a1389eb88017e36476262eaa6a1d9ea961200661ba91966  4       017bc604aaa08e9b  SPENT
+0206ddc263b0a396176b3d42420cd3c49b1361ada663d8a8d4d510e20307119aa7  1       017bc604aaa08e9b  SPENT
+3 proofs at https://testnut.cashu.space: 21 sat SPENT (checked over the mixnet in 3.80s)
+
+# Gateway log for the whole session (mint quote, mint, NUT-17 websocket, keys, swap):
+13:45:57 GET testnut.cashu.space/v1/keysets -> 200, 259 bytes, 4.13s
+13:45:59 GET testnut.cashu.space/v1/info -> 200, 3349 bytes, 1.33s
+13:46:00 POST testnut.cashu.space/v1/mint/quote/bolt11 -> 200, 527 bytes, 1.02s
+13:46:06 POST testnut.cashu.space/v1/mint/bolt11 -> 200, 4697 bytes, 2.67s
+13:46:07 GET testnut.cashu.space/v1/ws -> 101, 0 bytes, 6.82s (websocket)
+13:46:47 GET testnut.cashu.space/v1/keysets -> 200, 259 bytes, 1.76s
+13:46:48 GET testnut.cashu.space/v1/info -> 200, 3349 bytes, 0.73s
+13:48:11 GET testnut.cashu.space/v1/keysets -> 200, 259 bytes, 0.65s
+13:48:13 GET testnut.cashu.space/v1/keys -> 200, 5219 bytes, 1.66s
+13:48:13 GET testnut.cashu.space/v1/info -> 200, 3349 bytes, 0.62s
+13:48:14 GET testnut.cashu.space/v1/info -> 200, 3349 bytes, 0.82s
+13:48:15 GET testnut.cashu.space/v1/info -> 200, 3349 bytes, 0.82s
+13:48:17 GET testnut.cashu.space/v1/keysets -> 200, 259 bytes, 1.35s
+13:48:18 GET testnut.cashu.space/v1/keys -> 200, 5219 bytes, 1.46s
+13:48:19 GET testnut.cashu.space/v1/info -> 200, 3349 bytes, 0.84s
+13:48:20 GET testnut.cashu.space/v1/info -> 200, 3349 bytes, 0.88s
+13:48:21 POST testnut.cashu.space/v1/swap -> 200, 3136 bytes, 1.19s

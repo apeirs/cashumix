@@ -1,0 +1,22 @@
+$ cashumix ip
+https://api.ipify.org sees this request coming from 152.53.105.12 (4.20s over the mixnet)
+= Nym node 2943 (NL, exit gateway: true) in the nym-api node list
+
+$ cashumix info testnut.cashu.space
+Testnut mint (cdk-mintd/0.18.1)
+  url          https://testnut.cashu.space
+  pubkey       03b570f51ec78cc4c0843517d2ed16258ba5ee4d9d624bd097faad874db7ba0d0a
+  description  Mint for testing Cashu wallets
+  motd         This test mint has been reset. Old tokens and quotes are no longer valid. Fake payments only; do ...
+  nuts         4 5 7 8 9 10 11 12 14 15 17 19 20 29
+fetched over the mixnet in 5.21s
+
+$ cashumix keysets mint.minibits.cash/Bitcoin
+KEYSET ID                                                           UNIT  ACTIVE  INPUT FEE (ppk)
+00107937db0cc865                                                    sat   false   0
+01fc0ec0e59cd6fa01b7a88f8cd77fce81fd1e64bca67d752e984992b7a3c3a821  sat   true    0
+00500550f0494146                                                    sat   false   0
+3 keysets from https://mint.minibits.cash/Bitcoin, fetched over the mixnet in 7.98s
+
+$ cashumix info testnut.cashu.space --direct    # comparison only
+fetched DIRECT (no mixnet) in 0.26s

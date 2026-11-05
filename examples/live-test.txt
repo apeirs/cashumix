@@ -1,0 +1,20 @@
+LIVE exit-ip: servers see 152.53.105.12 (4.24s over the mixnet)
+LIVE exit-ip: a direct request comes from this machine's own address (not shown); same as the mixnet one: false
+LIVE exit-ip: 152.53.105.12 is Nym node 2943 (NL), exit gateway: true
+LIVE https://testnut.cashu.space /v1/info over the mixnet: "Testnut mint" cdk-mintd/0.18.1, nuts [4 5 7 8 9 10 11 12 14 15 17 19 20 29], 4.69s
+LIVE https://testnut.cashu.space /v1/keysets over the mixnet: 2 keysets, 0.85s
+LIVE https://testnut.cashu.space /v1/checkstate over the mixnet: random Y 0202af374feefdef... is UNSPENT, 0.72s
+LIVE https://mint.minibits.cash/Bitcoin /v1/info over the mixnet: "Minibits mint" cdk-mintd/0.17.7, nuts [4 5 7 8 9 10 11 12 14 15 17 19 20 29], 3.73s
+LIVE https://mint.minibits.cash/Bitcoin /v1/keysets over the mixnet: 3 keysets, 0.93s
+LIVE https://mint.minibits.cash/Bitcoin /v1/checkstate over the mixnet: random Y 02a5025ae14fddd7... is UNSPENT, 1.03s
+LIVE gateway http://127.0.0.1:34737/testnut.cashu.space/v1/info -> "Testnut mint", 2.66s (fresh mixnet stream)
+LIVE gateway http://127.0.0.1:34737/testnut.cashu.space/v1/checkstate -> UNSPENT, 2.35s
+LIVE gateway http://127.0.0.1:34737/mint.minibits.cash/Bitcoin/v1/info -> "Minibits mint", 2.04s (fresh mixnet stream)
+LIVE gateway http://127.0.0.1:34737/mint.minibits.cash/Bitcoin/v1/checkstate -> UNSPENT, 2.73s
+--- PASS: TestLive (26.89s)
+    --- PASS: TestLive/exit-ip (5.17s)
+    --- PASS: TestLive/cli/testnut.cashu.space (6.26s)
+    --- PASS: TestLive/cli/mint.minibits.cash/Bitcoin (5.69s)
+    --- PASS: TestLive/gateway (9.78s)
+PASS
+ok  	github.com/apeirs/cashumix	26.894s
