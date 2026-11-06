@@ -121,8 +121,18 @@ refuses it, and `cashu invoice` then waits forever for the "paid" notification. 
 WebSocket included. The same nutshell behaviour breaks any mint whose URL has a path, such as
 `mint.minibits.cash/Bitcoin`, even without cashumix.
 
-**cdk-cli** (not tested here): pass the gateway URL wherever cdk-cli takes a mint URL. For
-example, `cdk-cli mint http://127.0.0.1:3338/testnut.cashu.space 64`.
+**cdk-cli** (0.18.3 tested: mint, send, receive and melt, see
+[examples/live-cdk-cli.txt](examples/live-cdk-cli.txt)): pass the gateway URL wherever cdk-cli
+takes a mint URL. cdk-cli keeps the mint path in its WebSocket URL, so it doesn't need
+`--default`.
+
+```bash
+cashumix serve &
+M=http://127.0.0.1:3338/testnut.cashu.space
+cdk-cli mint $M 64
+cdk-cli send --mint-url $M --amount 21
+cdk-cli melt --mint-url $M --invoice lnbc...
+```
 
 **cashu.me and other browser wallets** (not tested here): add the mint as
 `http://127.0.0.1:3338/<mint>`. Browsers treat `127.0.0.1` as a secure context, so an https

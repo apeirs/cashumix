@@ -58,7 +58,44 @@ and dropped the mint path. The gateway refused that socket, because it names no 
 `cashu invoice` waited forever. That led to the `--default` advice in the README and to
 logging refused requests in the gateway.
 
+## A second wallet: cdk-cli
+
+Recorded 2026-11-07, same client identity and exit (node 2943, NL). `cdk-cli` 0.18.3, the
+prebuilt release binary (sha256 checked against the release's `SHA256SUMS`), with the mint URL
+`http://127.0.0.1:3338/testnut.cashu.space` and `cashumix serve --default testnut.cashu.space`.
+Wallet w1 minted 64 sat (13.6 s, including testnut's fake payment), sent a 21 sat token
+(offline, no request), and wallet w2, in its own `--work-dir`, received it (a swap, 4.2 s;
+20 sat after the input fee). `cashumix checkstate` showed the token's three proofs go from
+UNSPENT to SPENT. Then w1 melted 10 sat (6.9 s); its balance went from 43 to 30 sat. Every
+request went over the mixnet, both NUT-17 WebSockets included:
+
+```
+00:06:36 POST testnut.cashu.space/v1/mint/quote/bolt11 -> 200, 527 bytes, 0.81s
+00:06:42 POST testnut.cashu.space/v1/mint/bolt11 -> 200, 4697 bytes, 2.35s
+00:06:43 GET testnut.cashu.space/v1/ws -> 101, 0 bytes, 7.31s (websocket)
+00:07:22 POST testnut.cashu.space/v1/swap -> 200, 3136 bytes, 0.90s
+00:08:07 POST testnut.cashu.space/v1/melt/quote/bolt11 -> 200, 487 bytes, 0.93s
+00:08:08 POST testnut.cashu.space/v1/swap -> 200, 640 bytes, 0.81s
+00:08:09 POST testnut.cashu.space/v1/melt/bolt11 -> 200, 488 bytes, 0.81s
+00:08:13 GET testnut.cashu.space/v1/melt/quote/bolt11/01a1b31e-905e-7613-b096-69a649b18bcb -> 200, 507 bytes, 1.11s
+00:08:17 GET testnut.cashu.space/v1/ws -> 101, 0 bytes, 8.46s (websocket)
+```
+
+The full session is in [examples/live-cdk-cli.txt](examples/live-cdk-cli.txt). No gateway
+change was needed.
+
+- **The melt paid nothing real.** testnut's fake backend marks any well-formed bolt11 invoice
+  paid. The invoice was made locally with a random payee key and a random payment hash. The
+  first one had no feature bits, and cdk-cli refused it locally ("The invoice's features are
+  invalid") before asking for a melt quote. With `var_onion_optin` and `payment_secret`
+  required, it went through.
+- **cdk-cli keeps the mint path in its WebSocket URL.** A second gateway without `--default`
+  (port 3339, a third wallet) minted 8 sat, and its log shows
+  `GET testnut.cashu.space/v1/ws -> 101`. Unlike nutshell, cdk-cli needs no `--default`.
+- **`send` with `-n`** (non-interactive) needs `--mint-url`: the wallet lists testnut twice,
+  as sat and usd, and otherwise asks which one to send from.
+
 ## Not tested live
 
-cdk-cli, cashu.me, Minibits and other wallets; melt (paying a Lightning invoice); mints other
-than testnut and Minibits.
+cashu.me, Minibits and other wallets; a melt that pays a real Lightning invoice (the melts
+above went to testnut's fake backend); nutshell's melt; mints other than testnut and Minibits.

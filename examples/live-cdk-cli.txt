@@ -1,0 +1,152 @@
+# cdk-cli 0.18.3 (prebuilt release binary, sha256 checked) using the cashumix gateway,
+# testnut.cashu.space (fake Lightning backend). Two wallets: w1 and w2 (separate --work-dir).
+# Every request below went wallet -> cashumix serve -> nym-socks5-client -> Nym mixnet -> exit -> mint.
+# Recorded 2026-11-07. Exit: Nym node 2943 (NL), the same client identity as in LIVE.md.
+# Token strings are shortened to their first 36 characters; `time` user/sys lines are dropped.
+# -n is cdk-cli's --non-interactive. The unwrap line was copied from the terminal; every other
+# block was captured directly to a file.
+
+$ cashumix ip
+https://api.ipify.org sees this request coming from 152.53.105.12 (6.93s over the mixnet)
+= Nym node 2943 (NL, exit gateway: true) in the nym-api node list
+
+$ cashumix serve --default testnut.cashu.space &
+$ M=http://127.0.0.1:3338/testnut.cashu.space
+
+$ cdk-cli -n -w w1 mint-info $M
+{
+  "name": "Testnut mint",
+  "pubkey": "03b570f51ec78cc4c0843517d2ed16258ba5ee4d9d624bd097faad874db7ba0d0a",
+  "version": "cdk-mintd/0.18.1",
+  "description": "Mint for testing Cashu wallets",
+  "description_long": "This mint uses a FakeWallet. All your Lightning invoices will always be marked paid so that you can test minting and melting ecash via Lightning. On-chain payments are also simulated; no real funds are moved.",
+  "nuts": {
+    "4": {
+  ... (rest of the NUT-06 JSON omitted)
+real	0m8.379s
+
+$ cdk-cli -n -w w1 mint http://127.0.0.1:3338/testnut.cashu.space 64
+Quote: id=01a1b31d-2c5b-72f9-922f-5a260c311f56, state=UNPAID, amount=64, expiry=1794006995
+Please pay: lnbc640n1p4wuhtmdqqpp5zy753hnh0d42crr7srpxdajh63xmxrhznkfmfs7vhuyz4ua3xs7qsp59g4z52329g4z52329g4z52329g4z52329g4z52329g4z52329g4q9qrsgqcqzys3d3t2z2f2jx4jfmp37wdhh9gh3pxya5npwrkhvh2flztvj7n7eyjurtgvfjsdkdev7cdn6mdql2lyxgcd72xcy5kgdqc4rgf5y2sx5qqgqrwrt
+Quote state: PAID
+Quote state: ISSUED
+Minted 64 sat (total: 64 sat)
+Received 64 from mint http://127.0.0.1:3338/testnut.cashu.space
+
+real	0m13.596s
+$ cdk-cli -n -w w1 balance
+0: http://127.0.0.1:3338/testnut.cashu.space 64 sat
+
+Total balance across all wallets: 64 sat
+
+# (Without --mint-url, cdk-cli -n stops: the wallet lists testnut twice, as sat and usd, and asks which.)
+$ cdk-cli -n -w w1 send --mint-url http://127.0.0.1:3338/testnut.cashu.space --amount 21
+cashuBo2FteClodHRwOi8vMTI3LjAuMC4xOj...
+
+real	0m0.024s
+$ cdk-cli -n -w w1 balance
+Recovered 1 operations, 0 compensated, 0 skipped, 0 failed
+0: http://127.0.0.1:3338/testnut.cashu.space 43 sat
+
+Total balance across all wallets: 43 sat
+
+# The token names the gateway as its mint; cashumix knows the real one.
+$ cashumix unwrap token.txt | cashumix decode - | grep mint
+      "mint": "https://testnut.cashu.space",
+
+$ cashumix checkstate token.txt
+Y                                                                   AMOUNT  KEYSET            STATE
+0267764e3c0368d2a352ae097b992d34744ef3b1d7fa1ff119aee453247d1d6480  4       017bc604aaa08e9b  UNSPENT
+02db2e4f7f82cbfbb9454117cced673cc663e55ba26f123478195f3a1d85d5ae3b  1       017bc604aaa08e9b  UNSPENT
+025a3b91c0e1d6952ec928c6c678bdbb84a482202053ee7b9f8573e1119b5b3251  16      017bc604aaa08e9b  UNSPENT
+3 proofs at https://testnut.cashu.space: 21 sat UNSPENT (checked over the mixnet in 5.15s)
+
+# A second wallet receives the token (a NUT-03 swap, through the gateway)
+$ cdk-cli -n -w w2 receive --allow-untrusted cashuB...
+Received: 20
+
+real	0m4.220s
+$ cdk-cli -n -w w2 balance
+0: http://127.0.0.1:3338/testnut.cashu.space 20 sat
+
+Total balance across all wallets: 20 sat
+
+$ cashumix checkstate token.txt
+Y                                                                   AMOUNT  KEYSET            STATE
+0267764e3c0368d2a352ae097b992d34744ef3b1d7fa1ff119aee453247d1d6480  4       017bc604aaa08e9b  SPENT
+02db2e4f7f82cbfbb9454117cced673cc663e55ba26f123478195f3a1d85d5ae3b  1       017bc604aaa08e9b  SPENT
+025a3b91c0e1d6952ec928c6c678bdbb84a482202053ee7b9f8573e1119b5b3251  16      017bc604aaa08e9b  SPENT
+3 proofs at https://testnut.cashu.space: 21 sat SPENT (checked over the mixnet in 6.74s)
+
+# Melt. testnut's fake backend "pays" any well-formed bolt11 invoice. The invoice was made
+# locally with a random payee key and a random payment hash, so no real node can be paid.
+# First try: an invoice without the feature bits field. cdk-cli refused it locally; no melt
+# quote was requested (its one request, a checkstate, belongs to the "Recovered 1 operations" step):
+$ cdk-cli -n -w w1 melt --mint-url http://127.0.0.1:3338/testnut.cashu.space --invoice $(cat melt-invoice.txt)   # 10 sat, random payee key
+Recovered 1 operations, 0 compensated, 0 skipped, 0 failed
+Error: The invoice's features are invalid
+
+real	0m0.865s
+$ cdk-cli -n -w w1 balance
+0: http://127.0.0.1:3338/testnut.cashu.space 43 sat
+
+Total balance across all wallets: 43 sat
+
+# Second try: the same kind of invoice with var_onion_optin + payment_secret required (9qrsgq):
+$ cdk-cli -n -w w1 melt --mint-url http://127.0.0.1:3338/testnut.cashu.space --invoice $(cat melt-invoice.txt)   # 10 sat, random payee key
+Melt quote created:
+  Quote ID: 01a1b31e-905e-7613-b096-69a649b18bcb
+  Amount: 10
+  Fee Reserve: 1
+Payment successful: state=PAID, amount=10, fee_paid=2
+Payment preimage: 
+
+real	0m6.933s
+$ cdk-cli -n -w w1 balance
+0: http://127.0.0.1:3338/testnut.cashu.space 30 sat
+
+Total balance across all wallets: 30 sat
+
+# A gateway WITHOUT --default (a third wallet, w3): cashumix serve --listen 127.0.0.1:3339
+$ cdk-cli -n -w w3 mint http://127.0.0.1:3339/testnut.cashu.space 8
+Quote: id=01a1b31e-f638-77dd-84d1-df8cb84ba364, state=UNPAID, amount=8, expiry=1794007113
+Please pay: lnbc80n1p4wuh03dqqpp525zdle4aqu9turu3v00fku0gyp8u9qupq6dhp3rathggaavtdhjssp59g4z52329g4z52329g4z52329g4z52329g4z52329g4z52329g4q9qrsgqcqzyszqvyc8scwmlys2vgwuu0sqp4x7vfzcln2lr7v8025c80k6khyhl9dqqwfqa93ccllpehnnewmd9mup7yfzga3zar7w73hnnhgx37zlsq3kp2dq
+Quote state: PAID
+Quote state: ISSUED
+Minted 8 sat (total: 8 sat)
+Received 8 from mint http://127.0.0.1:3339/testnut.cashu.space
+
+real	0m14.534s
+
+# Gateway log (:3338, --default testnut.cashu.space) for the whole session:
+00:06:19 GET testnut.cashu.space/v1/info -> 200, 3349 bytes, 8.33s
+00:06:30 GET testnut.cashu.space/v1/info -> 200, 3349 bytes, 0.81s
+00:06:32 GET testnut.cashu.space/v1/keysets -> 200, 259 bytes, 2.31s
+00:06:34 GET testnut.cashu.space/v1/keys/017bc604aaa08e9b58804bdd552286f15d75ebdaa3d1bccc2a52fc7406b4040fda -> 200, 2616 bytes, 2.25s
+00:06:35 GET testnut.cashu.space/v1/keys/010eca897fd3b9d496c4ef28de870727ef616cb0a05404035c65cf5cc6fa879504 -> 200, 2616 bytes, 0.82s
+00:06:36 POST testnut.cashu.space/v1/mint/quote/bolt11 -> 200, 527 bytes, 0.81s
+00:06:42 POST testnut.cashu.space/v1/mint/bolt11 -> 200, 4697 bytes, 2.35s
+00:06:43 GET testnut.cashu.space/v1/ws -> 101, 0 bytes, 7.31s (websocket)
+00:07:03 POST testnut.cashu.space/v1/checkstate -> 200, 336 bytes, 3.66s
+00:07:19 GET testnut.cashu.space/v1/info -> 200, 3349 bytes, 0.82s
+00:07:19 GET testnut.cashu.space/v1/keysets -> 200, 259 bytes, 0.71s
+00:07:20 GET testnut.cashu.space/v1/keys/017bc604aaa08e9b58804bdd552286f15d75ebdaa3d1bccc2a52fc7406b4040fda -> 200, 2616 bytes, 0.88s
+00:07:21 GET testnut.cashu.space/v1/keys/010eca897fd3b9d496c4ef28de870727ef616cb0a05404035c65cf5cc6fa879504 -> 200, 2616 bytes, 0.82s
+00:07:22 POST testnut.cashu.space/v1/swap -> 200, 3136 bytes, 0.90s
+00:07:50 POST testnut.cashu.space/v1/checkstate -> 200, 330 bytes, 0.85s
+00:08:07 POST testnut.cashu.space/v1/melt/quote/bolt11 -> 200, 487 bytes, 0.93s
+00:08:08 POST testnut.cashu.space/v1/swap -> 200, 640 bytes, 0.81s
+00:08:09 POST testnut.cashu.space/v1/melt/bolt11 -> 200, 488 bytes, 0.81s
+00:08:13 GET testnut.cashu.space/v1/melt/quote/bolt11/01a1b31e-905e-7613-b096-69a649b18bcb -> 200, 507 bytes, 1.11s
+00:08:17 GET testnut.cashu.space/v1/ws -> 101, 0 bytes, 8.46s (websocket)
+00:09:04 gateway stopped
+
+# Gateway log (:3339, no --default):
+00:08:30 GET testnut.cashu.space/v1/info -> 200, 3349 bytes, 3.94s
+00:08:31 GET testnut.cashu.space/v1/keysets -> 200, 259 bytes, 0.73s
+00:08:32 GET testnut.cashu.space/v1/keys/017bc604aaa08e9b58804bdd552286f15d75ebdaa3d1bccc2a52fc7406b4040fda -> 200, 2616 bytes, 0.82s
+00:08:32 GET testnut.cashu.space/v1/keys/010eca897fd3b9d496c4ef28de870727ef616cb0a05404035c65cf5cc6fa879504 -> 200, 2616 bytes, 0.75s
+00:08:35 POST testnut.cashu.space/v1/mint/quote/bolt11 -> 200, 525 bytes, 2.35s
+00:08:41 POST testnut.cashu.space/v1/mint/bolt11 -> 200, 1888 bytes, 2.45s
+00:08:48 GET testnut.cashu.space/v1/ws -> 101, 0 bytes, 13.00s (websocket)
+00:08:58 gateway stopped
