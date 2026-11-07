@@ -2,6 +2,7 @@ package gateway_test
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"io"
 	"net"
@@ -408,5 +409,42 @@ func TestWebSocketPassthrough(t *testing.T) {
 	h := w.mint.Last().Header
 	if h.Get("Origin") != "" || h.Get("User-Agent") != cashu.UserAgent || h.Get("Sec-Websocket-Key") == "" {
 		t.Fatalf("upgrade headers at the mint: %v", h)
+	}
+}
+
+// The mint is a real, directly reachable TLS server on localhost. With the
+// mixnet client down, nothing may reach it, in either DNS mode and at either
+// layer (gateway or CLI client): a direct dial would land on it and be seen.
+func TestNoFallbackEvenWhenDirectWouldWork(t *testing.T) {
+	ca := fakes.NewCA()
+	mint := fakes.StartMint(ca, "localhost", "127.0.0.1")
+	defer mint.Close()
+	ln, _ := net.Listen("tcp", "127.0.0.1:0")
+	dead := ln.Addr().String()
+	ln.Close()
+	_, port, _ := net.SplitHostPort(mint.Addr)
+	var p int
+	for _, c := range port {
+		p = p*10 + int(c-'0')
+	}
+	for _, mode := range []string{mixnet.DNSDoH, mixnet.DNSExit} {
+		tr := mixnet.NewTransport((&mixnet.Dialer{Proxy: dead, DNS: mode, RootCAs: ca.Pool, Timeout: time.Second}).DialContext, mixnet.TransportOptions{RootCAs: ca.Pool})
+		g := &gateway.Gateway{Mode: "test", AllowPrivate: true, Ports: map[int]bool{443: true, p: true}, Transport: tr}
+		srv := httptest.NewServer(g)
+		// The gateway takes dotted names or IP literals only, so the
+		// literal here; the CLI below uses the name.
+		resp, body := get(t, srv.URL+"/127.0.0.1:"+port+"/v1/info", nil)
+		if resp.StatusCode != 502 || !strings.Contains(string(body), "refusing to fall back") {
+			t.Errorf("dns=%s: want 502, got %d %s", mode, resp.StatusCode, body)
+		}
+		srv.Close()
+		cl := &cashu.Client{HTTP: &http.Client{Timeout: 3 * time.Second, Transport: tr}}
+		u, _ := url.Parse("https://localhost:" + port)
+		if _, _, err := cl.Info(context.Background(), u); err == nil {
+			t.Errorf("dns=%s: CLI path answered without the mixnet", mode)
+		}
+	}
+	if n := len(mint.Requests()); n != 0 {
+		t.Fatalf("the mint was reached directly %d times", n)
 	}
 }
