@@ -1,0 +1,104 @@
+# cashu.me (wallet.cashu.me, build 4abd2683) using the cashumix gateway, against
+# testnut.cashu.space (fake Lightning backend), plus cdk-cli 0.18.3 as the other wallet.
+# Every mint request below went wallet -> cashumix serve -> nym-socks5-client -> Nym mixnet -> exit -> mint.
+# Recorded 2026-11-10 in Chrome 152 (Playwright). Exit: Nym node 2943 (NL), the same client identity as in LIVE.md.
+# IP addresses are replaced with <exit-ip>. Token strings are shortened. Browser steps are
+# written as "[cashu.me] ..." with the result the page showed; the times come from the page
+# script that clicked through them. Shell blocks were captured to files; the two curl probes
+# are shown with their HTTP status added at the end of the line.
+
+$ cashumix nym start
+$ cashumix ip
+https://api.ipify.org sees this request coming from <exit-ip> (5.41s over the mixnet)
+= Nym node 2943 (NL, exit gateway: true) in the nym-api node list
+
+$ cashumix serve --cors https://wallet.cashu.me &
+09:53:31 cashumix 0.1.0 gateway on http://127.0.0.1:3338  ->  Nym mixnet via socks5 127.0.0.1:1080, dns=doh  ->  https mints
+09:53:31 set your wallet's mint URL to http://127.0.0.1:3338/<mint>, e.g. http://127.0.0.1:3338/testnut.cashu.space
+
+# Other web pages can't use the gateway, or read its status page (it lists your mints):
+$ curl -H 'Origin: https://example.org' http://127.0.0.1:3338/testnut.cashu.space/v1/info
+cashumix: Origin not allowed; see --cors                                        (HTTP 403)
+$ curl -H 'Origin: https://wallet.cashu.me' http://127.0.0.1:3338/.cashumix
+cashumix: the status page is not available to web pages                        (HTTP 403)
+
+[cashu.me] Settings > Mints > Add mint: http://127.0.0.1:3338/testnut.cashu.space
+           Chrome asks for "local network access" (wallet.cashu.me -> 127.0.0.1). Allow.
+           (Headless here, so the permission was granted through Playwright. Before that, Chrome
+           blocked the request and cashu.me said "This mint is not reachable".)
+           -> "Testnut mint", http://127.0.0.1:3338/testnut.cashu.space            (the wallet had 39 sat from a first run)
+[cashu.me] Receive > Lightning > 32 > Create invoice                                -> balance 71 sat after 11.2 s
+[cashu.me] Send > Ecash > 8 > Send > Copy                                          -> cashuBo2FteClodHRwOi8vMTI3LjAuMC4xOjMz...
+
+$ cashumix decode token.txt | grep -E '"(mint|amount)"' | head -2
+  "amount": 8,
+      "mint": "http://127.0.0.1:3338/testnut.cashu.space",
+
+$ time cdk-cli -n -w x2 receive --allow-untrusted cashuBo2FteClodHRwOi8vMTI3LjAuMC4xOjMz...
+Received: 7
+real	0m6.948s
+
+$ cashumix checkstate token.txt
+3 proofs at https://testnut.cashu.space: 8 sat SPENT (checked over the mixnet in 3.90s)
+
+$ cdk-cli -n -w x2 send --mint-url http://127.0.0.1:3338/testnut.cashu.space --amount 5 > back.txt
+$ cdk-cli -n -w x2 balance
+0: http://127.0.0.1:3338/testnut.cashu.space 2 sat
+
+[cashu.me] Receive > Ecash > Paste (the 5 sat token from back.txt) > Receive       -> "67 available" after 2.2 s
+[cashu.me] Send > Lightning > paste lnbc50n1p409kujpp5cw95... (5 sat, random payee)  -> "Pay 5, Fee Reserve 1"
+[cashu.me] Pay                                                                      -> "Paid 5, Fee: 1" after 7.1 s; balance 60 sat
+
+# The gateway's log of that session (cashu.me and cdk-cli shared the gateway):
+09:53:32 GET /testnut.cashu.space/v1/info -> 403 refused: Origin "https://example.org" not in --cors
+09:53:59 POST testnut.cashu.space/v1/mint/quote/bolt11 -> 200, 527 bytes, 6.19s
+09:54:01 POST testnut.cashu.space/v1/mint/quote/bolt11/check -> 200, 528 bytes, 0.89s
+09:54:02 POST testnut.cashu.space/v1/mint/quote/bolt11/check -> 200, 528 bytes, 0.84s
+09:54:03 POST testnut.cashu.space/v1/mint/bolt11/batch -> 200, 1577 bytes, 1.03s
+09:54:08 POST testnut.cashu.space/v1/checkstate -> 200, 336 bytes, 0.92s
+09:54:15 POST testnut.cashu.space/v1/checkstate -> 200, 336 bytes, 2.61s
+09:54:19 POST testnut.cashu.space/v1/checkstate -> 200, 336 bytes, 1.22s
+09:54:23 POST testnut.cashu.space/v1/checkstate -> 200, 336 bytes, 0.90s
+09:54:30 POST testnut.cashu.space/v1/checkstate -> 200, 336 bytes, 2.55s
+09:54:33 POST testnut.cashu.space/v1/checkstate -> 200, 336 bytes, 0.61s
+09:54:43 POST testnut.cashu.space/v1/checkstate -> 200, 336 bytes, 1.03s
+09:55:03 POST testnut.cashu.space/v1/checkstate -> 200, 336 bytes, 0.92s
+09:55:45 POST testnut.cashu.space/v1/checkstate -> 200, 336 bytes, 2.52s
+09:56:11 GET testnut.cashu.space/v1/ws -> 101, 0 bytes, 131.90s (websocket)
+09:56:18 GET testnut.cashu.space/v1/ws -> 101, 0 bytes, 131.11s (websocket)
+09:56:25 GET testnut.cashu.space/v1/info -> 200, 3349 bytes, 1.17s
+09:56:26 GET testnut.cashu.space/v1/keysets -> 200, 259 bytes, 0.93s
+09:56:28 GET testnut.cashu.space/v1/keys/017bc604aaa08e9b58804bdd552286f15d75ebdaa3d1bccc2a52fc7406b4040fda -> 200, 2616 bytes, 2.36s
+09:56:29 GET testnut.cashu.space/v1/keys/010eca897fd3b9d496c4ef28de870727ef616cb0a05404035c65cf5cc6fa879504 -> 200, 2616 bytes, 1.01s
+09:56:31 POST testnut.cashu.space/v1/swap -> 200, 1576 bytes, 1.38s
+09:56:37 POST testnut.cashu.space/v1/checkstate -> 200, 336 bytes, 2.03s
+09:56:59 POST testnut.cashu.space/v1/swap -> 200, 640 bytes, 1.14s
+09:57:03 POST testnut.cashu.space/v1/checkstate -> 200, 330 bytes, 1.10s
+09:57:04 POST testnut.cashu.space/v1/melt/quote/bolt11 -> 200, 404 bytes, 1.96s
+09:57:37 GET testnut.cashu.space/v1/melt/quote/bolt11/01a1c4ac-d8f2-7329-8dce-19b3fa618a0c -> 200, 424 bytes, 3.96s
+09:57:38 POST testnut.cashu.space/v1/checkstate -> 200, 330 bytes, 1.05s
+09:57:39 POST testnut.cashu.space/v1/melt/bolt11 -> 200, 424 bytes, 6.26s
+
+$ curl -s http://127.0.0.1:3338/.cashumix
+{
+  "active": 0,
+  "default": "",
+  "failed": 0,
+  "mode": "Nym mixnet via socks5 127.0.0.1:1080, dns=doh",
+  "per_mint": {
+    "testnut.cashu.space": 27
+  },
+  "pid": 3695034,
+  "requests": 27
+}
+
+# Notes
+# - The checkstate burst (09:54:08 to 09:55:45) is cashu.me watching its pending 8 sat token
+#   until cdk-cli spent it; the 09:56 WebSockets are its NUT-17 proof-state subscriptions.
+#   /v1/mint/bolt11/batch is cashu.me's batched mint call. All passed through unchanged.
+# - The 09:56:25 to 09:56:31 block is cdk-cli receiving the token (it fetches the keysets first).
+# - The `cashumix checkstate` calls don't appear: the CLI talks to the mixnet itself. One of
+#   them, before the receive, was cut off by a 120 s shell timeout while the mixnet was slow;
+#   the one after the receive took 3.9 s.
+# - Fees: testnut charges an input fee, so 8 sent arrive as 7 and the wallet pays 1 sat on
+#   swaps and melts.

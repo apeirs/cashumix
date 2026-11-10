@@ -1,7 +1,8 @@
 # cashumix
 
 Cashu wallet traffic through the [Nym mixnet](https://nym.com), so the mint can't link your
-mint, melt, swap and check-state requests to your IP address.
+mint, melt, swap and check-state requests to your IP address. Works with unmodified wallets:
+tested with nutshell, cdk-cli and the cashu.me web wallet.
 
 ```
 wallet ──http──> cashumix gateway ──SOCKS5──> nym-socks5-client ──Sphinx packets──> mixnet ──> exit gateway ──TLS──> mint
@@ -10,51 +11,109 @@ wallet ──http──> cashumix gateway ──SOCKS5──> nym-socks5-client 
  cashu.me)
 ```
 
-Ecash hides *what* you spend: blind signatures stop the mint linking the tokens it issued to the
-tokens it later redeems. It does not hide *who is talking*. Every request reaches the mint over
-HTTP from your IP, with your wallet's headers and timing. A mint that logs IPs can still tie the
+## Why
+
+Blind signatures stop a mint from linking the tokens it issued to the tokens it later redeems,
+but the mint still sees an IP address for every wallet action. A mint that logs IPs can tie the
 deposit (mint quote, Lightning invoice) to the withdrawal (melt) when both come from the same
-address minutes apart. It can also tie a sender to a receiver when both check the same token's
-state, a risk NUT-07 itself points out. Anyone watching your connection can do the same.
+address minutes apart, and can tie a sender to a receiver when both check the same token's
+state, a risk NUT-07 itself points out. cashumix takes the IP out of that picture: the mint sees
+one of the Nym exit gateways that all Nym users share, and a fixed `User-Agent`. On the way
+there your requests travel as fixed-size Sphinx packets, mixed and delayed at every hop.
+cashumix never touches the Cashu cryptography, and TLS runs from your machine to the mint, so
+the exit relays only ciphertext.
 
-cashumix removes the IP from that picture. The mint sees a Nym exit gateway's address, which
-many Nym users share, and a fixed `User-Agent`. On the way to the exit your requests travel
-as fixed-size Sphinx packets, mixed and delayed at every hop. cashumix never touches the Cashu
-cryptography: blinding, signatures and proofs stay between your wallet and the mint, and TLS
-runs from your machine to the mint, so the exit relays only ciphertext.
+## 60-second quickstart
 
-It has two parts:
-
-- **`cashumix serve`**: a local gateway that any Cashu wallet can use. You don't patch the
-  wallet. You change one setting, the mint URL:
-  `https://mint.example.com` becomes `http://127.0.0.1:3338/mint.example.com`.
-- **`cashumix info | keysets | checkstate`**: read-only mint queries straight over the mixnet,
-  including a NUT-07 token-state check that derives each proof's `Y = hash_to_curve(secret)`
-  locally (NUT-00, tested against the spec's vectors).
-
-Written in Go. The only dependency is `decred/dcrd/dcrec/secp256k1`.
-
-## Quick start
+You need Go and Nym's `nym-socks5-client` binary
+([releases](https://github.com/nymtech/nym/releases), `nym-binaries-*`; check its sha256
+against the release's `hashes.json`).
 
 ```bash
-go install github.com/apeirs/cashumix/cmd/cashumix@latest   # or: go build ./cmd/cashumix
-
-# 1. The mixnet client (Nym's official binary, see below)
-cashumix nym setup --binary ./nym-socks5-client     # picks a random active exit gateway, starts it on 127.0.0.1:1080
-
-# 2. Check it works: the IP that servers see should be a Nym exit gateway
-cashumix ip
-
-# 3. Talk to a mint over the mixnet
-cashumix info testnut.cashu.space
-cashumix keysets mint.minibits.cash/Bitcoin
-cashumix checkstate cashuB...                      # is this token still unspent?
-
-# 4. Run the gateway for your wallet
-cashumix serve
+go install github.com/apeirs/cashumix/cmd/cashumix@latest
+cashumix nym setup --binary ./nym-socks5-client   # picks a random Nym exit, starts the client on 127.0.0.1:1080 (under a minute)
+cashumix ip                                       # should name a Nym exit gateway, not your address
+cashumix serve --default testnut.cashu.space      # the gateway, on http://127.0.0.1:3338
 ```
 
-Real output from these commands is in [LIVE.md](LIVE.md) and [examples/](examples/).
+Then, in any wallet, replace the mint URL `https://testnut.cashu.space` with
+`http://127.0.0.1:3338/testnut.cashu.space`:
+
+```bash
+cdk-cli mint http://127.0.0.1:3338/testnut.cashu.space 64                   # cdk-cli
+MINT_URL=http://127.0.0.1:3338/testnut.cashu.space cashu invoice 64          # nutshell
+# cashu.me: Mints > Add mint > http://127.0.0.1:3338/testnut.cashu.space, allow "local network access"
+```
+
+testnut's Lightning is fake, so this costs nothing. For a real mint, use its host (and path)
+the same way, e.g. `http://127.0.0.1:3338/mint.minibits.cash/Bitcoin`.
+
+Without a wallet, the CLI queries a mint straight over the mixnet: `cashumix info
+testnut.cashu.space` (NUT-06), `cashumix keysets <mint>` (NUT-02), and `cashumix checkstate
+cashuB...` (NUT-07: is this token still unspent? It derives each proof's
+`Y = hash_to_curve(secret)` locally and sends only the `Y`s). Written in Go; the only
+dependency is `decred/dcrd/dcrec/secp256k1`.
+
+## Tested wallets
+
+Every row was run live over the Nym mixnet against testnut.cashu.space, with the gateway log
+showing each request. Full sessions are in [examples/](examples/).
+
+| Wallet | Version | What worked through cashumix | Setup that worked | Session |
+|---|---|---|---|---|
+| nutshell | 0.20.2 | mint, send, receive (swap), NUT-17 WebSocket | `cashumix serve --default testnut.cashu.space`, then with `MINT_URL=http://127.0.0.1:3338/testnut.cashu.space`: `cashu invoice 64`, `cashu send 21`, `cashu -w recipient receive <token>` | [live-nutshell.txt](examples/live-nutshell.txt) |
+| cdk-cli | 0.18.3 | mint, send, receive, melt, NUT-17 WebSockets, a gateway without `--default` | `cashumix serve`, then `cdk-cli mint http://127.0.0.1:3338/testnut.cashu.space 64`, `cdk-cli send --mint-url <same> --amount 21`, `cdk-cli receive --allow-untrusted <token>`, `cdk-cli melt --mint-url <same> --invoice lnbc...` | [live-cdk-cli.txt](examples/live-cdk-cli.txt) |
+| cashu.me | web, build 4abd2683 (2026-11-10), Chrome 152 | add mint, mint (incl. the batched `/v1/mint/bolt11/batch`), send, receive, melt, NUT-17 WebSockets, tokens passed both ways with cdk-cli | `cashumix serve --cors https://wallet.cashu.me`; Mints > Add mint > `http://127.0.0.1:3338/testnut.cashu.space`; allow Chrome's "local network access" prompt | [live-cashu-me.txt](examples/live-cashu-me.txt) |
+| `cashumix` CLI | this repo | `info`, `keysets`, `checkstate` on testnut and mint.minibits.cash/Bitcoin | `cashumix info testnut.cashu.space` | [live-cli.txt](examples/live-cli.txt), [LIVE.md](LIVE.md) |
+
+Not tested yet: mobile wallets (Minibits, eNuts), Firefox and Safari, nutshell's melt, and a
+melt that pays a real Lightning invoice (the melts above went to testnut's fake backend).
+
+## A real run
+
+cashu.me mints and sends through the gateway, cdk-cli receives the token and sends some back,
+cashu.me melts. Shortened from [examples/live-cashu-me.txt](examples/live-cashu-me.txt); the
+exit's address is replaced with `<exit-ip>`.
+
+```
+$ cashumix ip
+https://api.ipify.org sees this request coming from <exit-ip> (5.41s over the mixnet)
+= Nym node 2943 (NL, exit gateway: true) in the nym-api node list
+$ cashumix serve --cors https://wallet.cashu.me &
+
+[cashu.me] Receive > Lightning > 32                    -> balance 71 sat after 11.2 s
+[cashu.me] Send > Ecash > 8                            -> cashuBo2FteClodHRwOi8vMTI3LjAuMC4xOjMz...
+$ cdk-cli -n -w x2 receive --allow-untrusted cashuBo2FteClodHRwOi8vMTI3LjAuMC4xOjMz...
+Received: 7
+$ cashumix checkstate token.txt
+3 proofs at https://testnut.cashu.space: 8 sat SPENT (checked over the mixnet in 3.90s)
+[cashu.me] Receive > Ecash > (5 sat from cdk-cli)      -> 67 available after 2.2 s
+[cashu.me] Send > Lightning > lnbc50n1... > Pay        -> "Paid 5, Fee: 1" after 7.1 s
+
+gateway log:
+09:53:59 POST testnut.cashu.space/v1/mint/quote/bolt11 -> 200, 527 bytes, 6.19s
+09:54:03 POST testnut.cashu.space/v1/mint/bolt11/batch -> 200, 1577 bytes, 1.03s
+09:56:11 GET testnut.cashu.space/v1/ws -> 101, 0 bytes, 131.90s (websocket)
+09:56:31 POST testnut.cashu.space/v1/swap -> 200, 1576 bytes, 1.38s
+09:57:04 POST testnut.cashu.space/v1/melt/quote/bolt11 -> 200, 404 bytes, 1.96s
+09:57:39 POST testnut.cashu.space/v1/melt/bolt11 -> 200, 424 bytes, 6.26s
+```
+
+## Limits, in short
+
+- **It hides who connects, not what you send.** The mint still sees amounts, quote ids,
+  proofs and invoices, and can link requests by content and timing. Details below.
+- **Lightning is out of scope.** The node that pays your mint invoice, or that you melt to,
+  is not protected.
+- **Only the mint traffic goes through the mixnet.** Your wallet's other traffic doesn't:
+  cashu.me's onboarding fetches `/v1/info` directly from every mint it recommends (16 on
+  the day of the test, testnut among them) before you add the gateway URL, and its Nostr features (NIP-17 messages, mint backups) talk to
+  relays directly.
+- **Tokens you send name the gateway URL** (`http://127.0.0.1:3338/...`). Run
+  `cashumix unwrap` on them before giving them to someone without cashumix.
+- **It is slow.** About 1 to 10 seconds per request, sometimes much more.
+- **https mints on port 443 only by default**, no `.onion` mints, and the mint learns that
+  you use Nym.
 
 ## Running nym-socks5-client
 
@@ -134,11 +193,34 @@ cdk-cli send --mint-url $M --amount 21
 cdk-cli melt --mint-url $M --invoice lnbc...
 ```
 
-**cashu.me and other browser wallets** (not tested here): add the mint as
-`http://127.0.0.1:3338/<mint>`. Browsers treat `127.0.0.1` as a secure context, so an https
-wallet page may call it. The gateway answers CORS preflights itself (they never cross the
-mixnet), including Chrome's Private Network Access header. `--cors` restricts the allowed
-origin.
+**cashu.me** (tested on wallet.cashu.me in Chrome 152: mint, send, receive and melt, see
+[examples/live-cashu-me.txt](examples/live-cashu-me.txt)):
+
+```bash
+cashumix serve --cors https://wallet.cashu.me &
+```
+
+1. In cashu.me, add the mint `http://127.0.0.1:3338/testnut.cashu.space` (onboarding's "Add
+   mint" field, or Mints > Add mint).
+2. Chrome (142 and later) asks whether wallet.cashu.me may access your local network or this
+   device. Allow it. If you refuse or miss the prompt, Chrome blocks the request before it
+   reaches the gateway and cashu.me says "This mint is not reachable"; re-allow it in the
+   site settings ("Local network access").
+3. Use the wallet as usual. cashu.me keeps the mint path in its NUT-17 WebSocket URL, so it
+   needs no `--default`.
+
+`--cors https://wallet.cashu.me` matters for browser wallets. Any web page you visit can send
+requests to `127.0.0.1`. With the default `--cors '*'`, a page that gets past the browser's
+local-network check could use your gateway, and through it your mixnet client. With a list of
+origins, the gateway refuses every request whose `Origin` header is not on it, WebSocket
+upgrades included (browsers don't apply CORS to WebSockets). CLI wallets send no `Origin` and
+are not affected. The status page `/.cashumix`, which lists the mints you used, is never
+available to web pages.
+
+Other browser wallets should work the same way: add the mint as `http://127.0.0.1:3338/<mint>`
+and put the wallet's origin in `--cors`. Browsers treat `127.0.0.1` as a secure context, so an
+https wallet page may call it. The gateway answers CORS preflights itself (they never cross the
+mixnet), including Chrome's older Private Network Access header.
 
 **Mobile wallets** (Minibits, eNuts): only if the gateway runs on the phone itself or on a
 network you control (`--listen 0.0.0.0:3338 --public --host <name>`). Anyone who can reach a
@@ -190,10 +272,10 @@ Gateway flags:
 | `--user-agent` | `cashumix` | the one User-Agent every mint sees |
 | `--max-body` / `--max-response` | 1 MiB / 16 MiB | body size limits |
 | `--request-timeout` | 5m | per request (WebSockets exempt) |
-| `--cors` | `*` | `Access-Control-Allow-Origin`; `-` for none |
+| `--cors` | `*` | web wallet origins allowed, comma-separated (e.g. `https://wallet.cashu.me`); others get 403; `*` any page; `-` no CORS headers |
 | `--host` | loopback only | extra accepted Host names (DNS-rebinding guard) |
 
-`GET /.cashumix` shows request counts per mint.
+`GET /.cashumix` shows request counts per mint (for you and local tools; web pages get 403).
 
 ## What the gateway changes and checks
 
@@ -209,6 +291,8 @@ Gateway flags:
 - **Upstream.** https only, with certificate verification. No private, loopback or link-local IP
   literals. `.onion` hosts are refused (Nym exits can't reach them). Optional host allowlist
   and port list.
+- **Web pages.** With `--cors <origins>`, a request with any other `Origin` is refused,
+  WebSockets included. `/.cashumix` and the help page refuse any request that has an `Origin`.
 - **Limits.** Request and response size caps, generous timeouts (a mixnet round trip takes
   seconds), and a Host-header check so a web page can't reach the gateway through DNS rebinding.
 - **WebSockets.** NUT-17 subscriptions (`/v1/ws`) pass through.
@@ -237,8 +321,9 @@ network side channel.
 - **The exit sees the mint's hostname** (in the SOCKS request and TLS SNI) and the traffic
   volume, but not the content. TLS runs end to end to the mint.
 - **Your wallet itself** may still leak. Examples: the Lightning node that pays your mint
-  invoice, a wallet that talks to some mints directly, or NUT-21/22 clear auth (a JWT that names
-  you by design).
+  invoice, a wallet that talks to some mints directly (cashu.me's mint discovery fetches
+  `/v1/info` from recommended mints without the gateway), Nostr features that reach relays
+  directly, or NUT-21/22 clear auth (a JWT that names you by design).
 - **Lightning is out of scope.** cashumix protects the wallet-to-mint HTTP traffic only.
 - **Speed.** Expect roughly 1 to 10 seconds per request, sometimes more. LIVE.md has measured
   numbers.
@@ -265,6 +350,8 @@ SOCKS5 CONNECT, a fake DoH resolver and a fake TLS mint. It covers:
 - a CBOR decoder with RFC 8949 examples and malformed input;
 - URL mapping and allow/deny rules;
 - header stripping in both directions and CORS preflight;
+- the `--cors` origin allowlist (HTTP, preflight and WebSocket) and a status page web pages
+  can't read;
 - the DNS-rebinding guard and body limits;
 - TLS verification behind the exit;
 - connection reuse vs `--fresh`;

@@ -95,7 +95,56 @@ change was needed.
 - **`send` with `-n`** (non-interactive) needs `--mint-url`: the wallet lists testnut twice,
   as sat and usd, and otherwise asks which one to send from.
 
+## A web wallet: cashu.me
+
+Recorded 2026-11-10, same client identity and exit (node 2943, NL). wallet.cashu.me (build
+4abd2683) in Chrome 152, driven by Playwright, a fresh wallet, with the mint
+`http://127.0.0.1:3338/testnut.cashu.space`. cdk-cli 0.18.3 was the other wallet.
+
+First run (gateway with the default `--cors '*'`):
+
+- **Adding the mint failed at first, before any request left the browser.** Chrome 152 blocks
+  an https page's requests to `127.0.0.1` until the user allows "local network access":
+  "Permission was denied for this request to access the `loopback` address space", and cashu.me
+  showed "This mint is not reachable". A normal Chrome shows a prompt; the headless one denied
+  it silently. After the permission was granted through Playwright, the same "Add mint" worked
+  (`GET testnut.cashu.space/v1/info -> 200, 0.95s`). No gateway change could have helped:
+  the block happens in the browser. The README now says to allow the prompt.
+- Then: mint 64 sat; send 21 (cashu.me swapped first, `POST /v1/swap -> 200`); cdk-cli
+  received the token in 7.3 s (`Received: 20`, after testnut's input fee); `cashumix
+  checkstate` showed its three proofs UNSPENT before and SPENT after; cdk-cli sent 10 back and
+  cashu.me received them.
+- **A melt to an invoice from testnut itself failed, correctly.** The invoice came from a
+  testnut mint quote, which testnut's fake backend marks paid at once, so the melt got
+  HTTP 400, "Invoice already paid.". The gateway passed the error through and cashu.me
+  showed it. A melt to a locally made invoice (random payee key and payment hash, with
+  `var_onion_optin` and `payment_secret` required, as in the cdk-cli run) then went through:
+  "Paid 10, Fee: 1".
+
+Second run, after the `--cors` change below, with `cashumix serve --cors
+https://wallet.cashu.me`: mint 32 (11.2 s from "Create invoice" to the new balance), send 8,
+cdk-cli receive (6.9 s), cdk-cli sends 5 back, cashu.me receives (2.2 s), melt 5 (7.1 s). The
+full session and the gateway log are in
+[examples/live-cashu-me.txt](examples/live-cashu-me.txt). Every request in the gateway log
+returned 200 or 101, including cashu.me's batched `POST /v1/mint/bolt11/batch`, its
+`POST /v1/mint/quote/bolt11/check`, its checkstate polling of a pending token, and its NUT-17
+WebSockets, which keep the mint path in their URL (no `--default` needed).
+
+What the browser's network log showed besides the gateway: during onboarding, cashu.me's mint
+discovery fetched `/v1/info` straight from the mints it recommends (testnut and Minibits
+among them), and the wallet connects to Nostr relays directly. None of that carries wallet
+operations, but those mints and relays see your IP once. After the gateway URL was added,
+every mint request in the session went to `127.0.0.1:3338`.
+
+**A bug this found in cashumix:** the status page `/.cashumix` lists the mints the gateway
+has talked to, and it was served with `Access-Control-Allow-Origin: *`. Any web page that got
+past the browser's local-network check could read which mints you use. Now the status and help
+pages refuse any request that has an `Origin` header and carry no CORS headers, and `--cors`
+takes a list of wallet origins: requests from other origins get 403, WebSocket upgrades
+included. Tests: `TestStatusPagePrivateAndOriginAllowlist`.
+
 ## Not tested live
 
-cashu.me, Minibits and other wallets; a melt that pays a real Lightning invoice (the melts
-above went to testnut's fake backend); nutshell's melt; mints other than testnut and Minibits.
+Minibits, eNuts and other mobile wallets; Firefox and Safari; a melt that pays a real
+Lightning invoice (every melt above went to testnut's fake backend); nutshell's melt; mints
+other than testnut and Minibits.
