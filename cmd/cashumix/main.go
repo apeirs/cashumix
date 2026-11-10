@@ -525,7 +525,7 @@ func cmdServe(args []string) {
 	only := fs.String("only", "", "comma-separated mint hosts; refuse all others")
 	ports := fs.String("allow-port", "443", "comma-separated upstream ports allowed (the Nym exit policy must allow them too)")
 	fresh := fs.Bool("fresh", false, "new mixnet stream and TLS session for every request (no connection reuse the mint could link; slower)")
-	cors := fs.String("cors", "*", `Access-Control-Allow-Origin for browser wallets ("-" = no CORS headers)`)
+	cors := fs.String("cors", "*", `web wallet origins allowed to use the gateway, comma-separated (e.g. https://wallet.cashu.me); "*" = any web page, "-" = none`)
 	hosts := fs.String("host", "", "extra Host header names to accept besides loopback (DNS-rebinding guard)")
 	public := fs.Bool("public", false, "allow listening on a non-loopback address (anyone who can reach it uses your mixnet client)")
 	ua := fs.String("user-agent", cashu.UserAgent, "User-Agent sent to every mint, whatever the wallet sends")

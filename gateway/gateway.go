@@ -93,7 +93,12 @@ type Gateway struct {
 	AllowPrivate bool
 	// UserAgent sent to every mint (default cashu.UserAgent).
 	UserAgent string
-	// CORSOrigin for browser wallets ("" = "*"; "-" = no CORS headers).
+	// CORSOrigin for browser wallets: "" or "*" lets any web page use the
+	// gateway; "-" sends no CORS headers; otherwise a comma-separated list of
+	// origins (e.g. "https://wallet.cashu.me"). With a list, a request that
+	// carries an Origin header outside it is refused with 403, WebSocket
+	// upgrades included (browsers do not apply CORS to WebSockets). Requests
+	// without an Origin header (CLI wallets) are not affected.
 	CORSOrigin string
 	// Hosts accepted in the Host header besides loopback (DNS-rebinding guard).
 	Hosts []string
@@ -285,6 +290,7 @@ type ctxKey struct{}
 
 type reqInfo struct {
 	target *url.URL
+	origin string // the wallet's Origin header (never sent to the mint)
 	start  time.Time
 	upMsg  string
 }
@@ -341,13 +347,18 @@ func (g *Gateway) maxResponse() int64 {
 var errTooLarge = errors.New("mint response too large")
 
 func (g *Gateway) modifyResponse(resp *http.Response) error {
-	if ri, ok := resp.Request.Context().Value(ctxKey{}).(*reqInfo); ok && resp.StatusCode >= 500 {
+	ri, _ := resp.Request.Context().Value(ctxKey{}).(*reqInfo)
+	if ri != nil && resp.StatusCode >= 500 {
 		ri.upMsg = "mint answered " + resp.Status
 	}
 	h := http.Header{}
 	copyHeaders(h, resp.Header, forwardResponse)
 	resp.Header = h
-	g.cors(h)
+	origin := ""
+	if ri != nil {
+		origin = ri.origin
+	}
+	g.cors(h, origin)
 	if resp.StatusCode == http.StatusSwitchingProtocols {
 		return nil
 	}
@@ -384,20 +395,56 @@ func (l *limitBody) Read(p []byte) (int, error) {
 
 func (l *limitBody) Close() error { return l.rc.Close() }
 
-func (g *Gateway) cors(h http.Header) {
-	o := g.CORSOrigin
-	if o == "-" {
+// origins returns the CORS allowlist, or nil when any origin may use the
+// gateway ("" or "*") or CORS is off ("-").
+func (g *Gateway) origins() []string {
+	o := strings.TrimSpace(g.CORSOrigin)
+	if o == "" || o == "*" || o == "-" {
+		return nil
+	}
+	var list []string
+	for _, x := range strings.Split(o, ",") {
+		if x = strings.TrimRight(strings.TrimSpace(x), "/"); x != "" {
+			list = append(list, x)
+		}
+	}
+	return list
+}
+
+// originOK reports whether a request with this Origin header may use the
+// gateway. No Origin (a CLI wallet) is always fine.
+func (g *Gateway) originOK(origin string) bool {
+	list := g.origins()
+	if origin == "" || list == nil {
+		return true
+	}
+	for _, o := range list {
+		if strings.EqualFold(o, origin) {
+			return true
+		}
+	}
+	return false
+}
+
+// cors sets Access-Control-Allow-Origin for a request from origin.
+func (g *Gateway) cors(h http.Header, origin string) {
+	o := strings.TrimSpace(g.CORSOrigin)
+	switch {
+	case o == "-":
+		return
+	case o == "" || o == "*":
+		h.Set("Access-Control-Allow-Origin", "*")
 		return
 	}
-	if o == "" {
-		o = "*"
+	h.Add("Vary", "Origin")
+	if origin != "" && g.originOK(origin) {
+		h.Set("Access-Control-Allow-Origin", origin)
 	}
-	h.Set("Access-Control-Allow-Origin", o)
 }
 
 // writeError answers in the NUT-00 error format, which wallets display.
-func (g *Gateway) writeError(w http.ResponseWriter, status int, detail string) {
-	g.cors(w.Header())
+func (g *Gateway) writeError(w http.ResponseWriter, r *http.Request, status int, detail string) {
+	g.cors(w.Header(), r.Header.Get("Origin"))
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(map[string]any{"detail": "cashumix: " + detail, "code": 0})
@@ -415,7 +462,7 @@ func (g *Gateway) proxyError(w http.ResponseWriter, r *http.Request, err error) 
 		status = http.StatusGatewayTimeout
 	}
 	ri.upMsg = err.Error()
-	g.writeError(w, status, fmt.Sprintf("%s %s over the mixnet: %v", r.Method, ri.target.Host, err))
+	g.writeError(w, r, status, fmt.Sprintf("%s %s over the mixnet: %v", r.Method, ri.target.Host, err))
 }
 
 func isTimeout(err error) bool {
@@ -454,9 +501,30 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "cashumix: Host header not allowed (DNS-rebinding guard); see --host", http.StatusForbidden)
 		return
 	}
+	origin := r.Header.Get("Origin")
+	if r.URL.Path == "/.cashumix" || (r.URL.Path == "/" && r.Method == http.MethodGet && g.Default == "") {
+		// Local pages for the user and local tools only. They carry no CORS
+		// headers, and a web page may not load them at all: the status page
+		// lists the mints you use.
+		if origin != "" {
+			http.Error(w, "cashumix: the status page is not available to web pages", http.StatusForbidden)
+			return
+		}
+		if r.URL.Path == "/.cashumix" {
+			g.serveStatus(w)
+		} else {
+			g.serveHelp(w)
+		}
+		return
+	}
+	if !g.originOK(origin) {
+		g.logf("%s %s -> 403 refused: Origin %q not in --cors", r.Method, r.URL.EscapedPath(), origin)
+		http.Error(w, "cashumix: Origin not allowed; see --cors", http.StatusForbidden)
+		return
+	}
 	if r.Method == http.MethodOptions {
 		// CORS preflight is answered here: it never crosses the mixnet.
-		g.cors(w.Header())
+		g.cors(w.Header(), origin)
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Accept, Clear-Auth, Blind-Auth")
 		w.Header().Set("Access-Control-Allow-Private-Network", "true")
@@ -464,16 +532,8 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
-	if r.URL.Path == "/" && r.Method == http.MethodGet && g.Default == "" {
-		g.serveHelp(w)
-		return
-	}
-	if r.URL.Path == "/.cashumix" {
-		g.serveStatus(w)
-		return
-	}
 	if r.Method != http.MethodGet && r.Method != http.MethodPost {
-		g.writeError(w, http.StatusMethodNotAllowed, "only GET and POST are used by Cashu mints")
+		g.writeError(w, r, http.StatusMethodNotAllowed, "only GET and POST are used by Cashu mints")
 		return
 	}
 	target, err := g.Target(r.URL)
@@ -484,7 +544,7 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			status = te.Status
 		}
 		g.logf("%s %s -> %d refused: %v", r.Method, r.URL.EscapedPath(), status, err)
-		g.writeError(w, status, err.Error())
+		g.writeError(w, r, status, err.Error())
 		return
 	}
 	maxReq := g.MaxRequestBody
@@ -492,12 +552,12 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		maxReq = DefaultMaxRequestBody
 	}
 	if r.ContentLength > maxReq {
-		g.writeError(w, http.StatusRequestEntityTooLarge, fmt.Sprintf("request body larger than %d bytes", maxReq))
+		g.writeError(w, r, http.StatusRequestEntityTooLarge, fmt.Sprintf("request body larger than %d bytes", maxReq))
 		return
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, maxReq)
 
-	ri := &reqInfo{target: target, start: time.Now()}
+	ri := &reqInfo{target: target, origin: origin, start: time.Now()}
 	ctx := context.WithValue(r.Context(), ctxKey{}, ri)
 	upgrade := isUpgrade(r)
 	if !upgrade {
@@ -569,7 +629,6 @@ func (g *Gateway) serveStatus(w http.ResponseWriter) {
 	}
 	g.mu.Unlock()
 	w.Header().Set("Content-Type", "application/json")
-	g.cors(w.Header())
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
 	_ = enc.Encode(map[string]any{

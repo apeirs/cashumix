@@ -448,3 +448,81 @@ func TestNoFallbackEvenWhenDirectWouldWork(t *testing.T) {
 		t.Fatalf("the mint was reached directly %d times", n)
 	}
 }
+
+// Any web page the user visits can send requests to 127.0.0.1. The status
+// page lists the mints the user talks to, so no web page may read it, and
+// with --cors set to a list, other origins can't use the gateway at all.
+func TestStatusPagePrivateAndOriginAllowlist(t *testing.T) {
+	w := newWorld(t)
+	_, base := w.gateway(t, nil)
+	get(t, base+"/mint.test/v1/info", nil)
+
+	// Default (--cors '*'): wallets from any origin work ...
+	resp, _ := get(t, base+"/mint.test/v1/info", map[string]string{"Origin": "https://wallet.example"})
+	if resp.StatusCode != 200 || resp.Header.Get("Access-Control-Allow-Origin") != "*" {
+		t.Fatalf("default CORS: %d %v", resp.StatusCode, resp.Header)
+	}
+	// ... but the status and help pages are for local tools only.
+	for _, p := range []string{"/.cashumix", "/"} {
+		resp, body := get(t, base+p, map[string]string{"Origin": "https://tracker.example"})
+		if resp.StatusCode != 403 || strings.Contains(string(body), "mint.test") || resp.Header.Get("Access-Control-Allow-Origin") != "" {
+			t.Errorf("%s from a web page: %d %v %s", p, resp.StatusCode, resp.Header, body)
+		}
+		resp, body = get(t, base+p, nil)
+		if resp.StatusCode != 200 || resp.Header.Get("Access-Control-Allow-Origin") != "" {
+			t.Errorf("%s locally: %d %v %s", p, resp.StatusCode, resp.Header, body)
+		}
+	}
+
+	// --cors https://wallet.example,https://other.example
+	n := len(w.mint.Requests())
+	_, base = w.gateway(t, func(g *gateway.Gateway, _ *mixnet.TransportOptions) {
+		g.CORSOrigin = "https://wallet.example, https://other.example/"
+	})
+	resp, _ = get(t, base+"/mint.test/v1/info", map[string]string{"Origin": "https://other.example"})
+	if resp.StatusCode != 200 || resp.Header.Get("Access-Control-Allow-Origin") != "https://other.example" ||
+		resp.Header.Get("Vary") != "Origin" {
+		t.Fatalf("allowed origin: %d %v", resp.StatusCode, resp.Header)
+	}
+	resp, _ = get(t, base+"/mint.test/v1/info", nil) // a CLI wallet sends no Origin
+	if resp.StatusCode != 200 || resp.Header.Get("Access-Control-Allow-Origin") != "" {
+		t.Fatalf("no Origin: %d %v", resp.StatusCode, resp.Header)
+	}
+	if len(w.mint.Requests()) != n+2 {
+		t.Fatalf("allowed requests: the mint saw %d, want %d", len(w.mint.Requests()), n+2)
+	}
+	req, _ := http.NewRequest("OPTIONS", base+"/mint.test/v1/swap", nil)
+	req.Header.Set("Origin", "https://wallet.example")
+	req.Header.Set("Access-Control-Request-Method", "POST")
+	if resp, _ := do(t, req); resp.StatusCode != 204 || resp.Header.Get("Access-Control-Allow-Origin") != "https://wallet.example" {
+		t.Fatalf("allowed preflight: %d %v", resp.StatusCode, resp.Header)
+	}
+	req.Header.Set("Origin", "https://tracker.example")
+	if resp, _ := do(t, req); resp.StatusCode != 403 || resp.Header.Get("Access-Control-Allow-Origin") != "" {
+		t.Fatalf("foreign preflight: %d %v", resp.StatusCode, resp.Header)
+	}
+	req, _ = http.NewRequest("POST", base+"/mint.test/v1/swap", strings.NewReader(`{}`))
+	req.Header.Set("Origin", "https://tracker.example")
+	if resp, _ := do(t, req); resp.StatusCode != 403 {
+		t.Fatalf("foreign POST: %d", resp.StatusCode)
+	}
+	// Browsers don't apply CORS to WebSockets: the gateway checks Origin itself.
+	conn, err := net.Dial("tcp", strings.TrimPrefix(base, "http://"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	conn.SetDeadline(time.Now().Add(10 * time.Second))
+	io.WriteString(conn, "GET /mint.test/v1/ws HTTP/1.1\r\nHost: 127.0.0.1:3338\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n"+
+		"Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\nOrigin: https://tracker.example\r\n\r\n")
+	wsResp, err := http.ReadResponse(bufio.NewReader(conn), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if wsResp.StatusCode != 403 {
+		t.Fatalf("foreign WebSocket: %d", wsResp.StatusCode)
+	}
+	if len(w.mint.Requests()) != n+2 {
+		t.Fatal("a refused request reached the mint")
+	}
+}
