@@ -10,6 +10,9 @@
   `--cors https://wallet.cashu.me`: mint, send, receive and melt, with cdk-cli receiving a
   token from cashu.me and sending one back. Includes the gateway log and the 403s that other
   web origins now get.
+- `live-2026-11-12.txt`: a fresh cdk-cli session (mint 64, send 21, receive, `checkstate`)
+  with each step's wall time and the gateway log. `docs/demo.svg`, the animation at the top of
+  the main README, is a condensed render of this file.
 - `live-cli.txt`: `cashumix ip`, `info` and `keysets` over the mixnet, plus one `--direct`
   call for comparison.
 - `live-test.txt`: output of `CASHUMIX_LIVE=1 go test -run Live -v .`.

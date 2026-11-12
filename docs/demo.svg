@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="860" height="497" viewBox="0 0 860 497" role="img" aria-label="Recorded cashumix session: a Cashu wallet mints, sends and receives on testnut.cashu.space through the Nym mixnet">
+<title>cashumix over the Nym mixnet, recorded 2026-11-12 07:08 UTC</title>
+<style>text{font:13px ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace;white-space:pre}
+.l{animation:var(--n) 23.5s linear infinite}
+@media (prefers-reduced-motion:reduce){.l{animation:none}}
+@keyframes a0{0%,6.39%{opacity:0}6.69%,98%{opacity:1}100%{opacity:0}}
+@keyframes a1{0%,12.80%{opacity:0}13.10%,98%{opacity:1}100%{opacity:0}}
+@keyframes a2{0%,14.29%{opacity:0}14.59%,98%{opacity:1}100%{opacity:0}}
+@keyframes a3{0%,18.13%{opacity:0}18.43%,98%{opacity:1}100%{opacity:0}}
+@keyframes a4{0%,19.62%{opacity:0}19.92%,98%{opacity:1}100%{opacity:0}}
+@keyframes a5{0%,23.45%{opacity:0}23.75%,98%{opacity:1}100%{opacity:0}}
+@keyframes a6{0%,27.29%{opacity:0}27.59%,98%{opacity:1}100%{opacity:0}}
+@keyframes a7{0%,32.91%{opacity:0}33.21%,98%{opacity:1}100%{opacity:0}}
+@keyframes a8{0%,37.13%{opacity:0}37.43%,98%{opacity:1}100%{opacity:0}}
+@keyframes a9{0%,44.53%{opacity:0}44.83%,98%{opacity:1}100%{opacity:0}}
+@keyframes a10{0%,48.36%{opacity:0}48.66%,98%{opacity:1}100%{opacity:0}}
+@keyframes a11{0%,49.85%{opacity:0}50.15%,98%{opacity:1}100%{opacity:0}}
+@keyframes a12{0%,53.69%{opacity:0}53.99%,98%{opacity:1}100%{opacity:0}}
+@keyframes a13{0%,59.31%{opacity:0}59.61%,98%{opacity:1}100%{opacity:0}}
+@keyframes a14{0%,61.42%{opacity:0}61.72%,98%{opacity:1}100%{opacity:0}}
+@keyframes a15{0%,65.25%{opacity:0}65.55%,98%{opacity:1}100%{opacity:0}}
+@keyframes a16{0%,72.73%{opacity:0}73.03%,98%{opacity:1}100%{opacity:0}}
+@keyframes a17{0%,74.22%{opacity:0}74.52%,98%{opacity:1}100%{opacity:0}}
+@keyframes a18{0%,75.71%{opacity:0}76.01%,98%{opacity:1}100%{opacity:0}}
+@keyframes a19{0%,77.21%{opacity:0}77.51%,98%{opacity:1}100%{opacity:0}}
+@keyframes a20{0%,78.70%{opacity:0}79.00%,98%{opacity:1}100%{opacity:0}}</style>
+<rect width="860" height="497" rx="10" fill="#161614"/>
+<rect width="860" height="30" rx="10" fill="#26251f"/><rect y="20" width="860" height="10" fill="#26251f"/>
+<circle cx="18" cy="15" r="5" fill="#ff5f57"/><circle cx="36" cy="15" r="5" fill="#febc2e"/><circle cx="54" cy="15" r="5" fill="#28c840"/>
+<text x="430.0" y="19" text-anchor="middle" fill="#a19f97" style="font-size:12px">cashumix · Cashu wallet ⇄ mint over the Nym mixnet · real session 2026-11-12, played ~3× faster</text>
+<text class="l" style="--n:a0" x="18" y="58" fill="#e8e6df"><tspan fill="#f0b65a">$</tspan> cashumix ip</text>
+<text class="l" style="--n:a1" x="18" y="77" fill="#b9b6ad">api.ipify.org sees this request coming from 152.53.105.12 (4.09s over the mixnet)</text>
+<text class="l" style="--n:a2" x="18" y="96" fill="#b9b6ad">= Nym node 2943 (NL, exit gateway: true)</text>
+<text class="l" style="--n:a3" x="18" y="115" fill="#e8e6df"><tspan fill="#f0b65a">$</tspan> cashumix serve --default testnut.cashu.space &amp;</text>
+<text class="l" style="--n:a4" x="18" y="134" fill="#b9b6ad">08:07:53 gateway on http://127.0.0.1:3338  -&gt;  Nym mixnet via socks5 127.0.0.1:1080</text>
+<text class="l" style="--n:a5" x="18" y="153" fill="#e8e6df"><tspan fill="#f0b65a">$</tspan> M=http://127.0.0.1:3338/testnut.cashu.space</text>
+<text class="l" style="--n:a6" x="18" y="172" fill="#e8e6df"><tspan fill="#f0b65a">$</tspan> cdk-cli -n -w alice mint $M 64</text>
+<text class="l" style="--n:a7" x="18" y="191" fill="#7fb3d5">  gateway 08:08:03  POST testnut.cashu.space/v1/mint/quote/bolt11 -&gt; 200, 527 bytes, 1.13s</text>
+<text class="l" style="--n:a8" x="18" y="210" fill="#7fb3d5">  gateway 08:08:07  POST testnut.cashu.space/v1/mint/bolt11 -&gt; 200, 4697 bytes, 0.93s</text>
+<text class="l" style="--n:a9" x="18" y="229" fill="#6fcf97">Minted 64 sat (total: 64 sat)</text>
+<text class="l" style="--n:a10" x="18" y="248" fill="#e8e6df"><tspan fill="#f0b65a">$</tspan> cdk-cli -n -w alice send --mint-url $M --amount 21</text>
+<text class="l" style="--n:a11" x="18" y="267" fill="#b9b6ad">cashuBo2FteClodHRwOi8v…  (a 21 sat token, made offline)</text>
+<text class="l" style="--n:a12" x="18" y="286" fill="#e8e6df"><tspan fill="#f0b65a">$</tspan> cdk-cli -n -w bob receive --allow-untrusted cashuBo2FteClodHRwOi8v…</text>
+<text class="l" style="--n:a13" x="18" y="305" fill="#7fb3d5">  gateway 08:08:13  POST testnut.cashu.space/v1/swap -&gt; 200, 3136 bytes, 1.16s</text>
+<text class="l" style="--n:a14" x="18" y="324" fill="#6fcf97">Received: 20      (testnut&#x27;s input fee: 3 proofs × 100 ppk = 1 sat)</text>
+<text class="l" style="--n:a15" x="18" y="343" fill="#e8e6df"><tspan fill="#f0b65a">$</tspan> cashumix checkstate token.txt</text>
+<text class="l" style="--n:a16" x="18" y="362" fill="#b9b6ad">Y                  AMOUNT  KEYSET            STATE</text>
+<text class="l" style="--n:a17" x="18" y="381" fill="#b9b6ad">025a62a6d2051680…       1  017bc604aaa08e9b  <tspan fill="#6fcf97">SPENT</tspan></text>
+<text class="l" style="--n:a18" x="18" y="400" fill="#b9b6ad">02ae7ed925a58b25…      16  017bc604aaa08e9b  <tspan fill="#6fcf97">SPENT</tspan></text>
+<text class="l" style="--n:a19" x="18" y="419" fill="#b9b6ad">024e94000f0ca0cd…       4  017bc604aaa08e9b  <tspan fill="#6fcf97">SPENT</tspan></text>
+<text class="l" style="--n:a20" x="18" y="438" fill="#b9b6ad">3 proofs at testnut.cashu.space: 21 sat <tspan fill="#6fcf97">SPENT</tspan> (checked over the mixnet in 5.32s)</text>
+<text x="18" y="483" fill="#6b6a65" style="font-size:11.5px">mint: testnut.cashu.space (fake Lightning) · wallet: cdk-cli 0.18.3 · blue: the gateway's log, real time per request</text>
+</svg>

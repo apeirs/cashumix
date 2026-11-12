@@ -1,0 +1,65 @@
+# Live session recorded 2026-11-12 07:08 UTC (UTC; gateway log times are local, UTC+1).
+# cashumix gateway -> nym-socks5-client (127.0.0.1:1080) -> Nym mixnet -> testnut.cashu.space. Wallet: cdk-cli 0.18.3.
+# docs/demo.svg is a condensed render of this log. Wall time of each step in [brackets].
+# token.txt holds the token that `send` printed.
+
+$ cashumix ip
+https://api.ipify.org sees this request coming from 152.53.105.12 (4.09s over the mixnet)
+= Nym node 2943 (NL, exit gateway: true) in the nym-api node list
+[4.56s]
+
+$ cashumix serve --default testnut.cashu.space &
+08:07:53 cashumix 0.1.0 gateway on http://127.0.0.1:3338  ->  Nym mixnet via socks5 127.0.0.1:1080, dns=doh  ->  https mints
+08:07:53 set your wallet's mint URL to http://127.0.0.1:3338/<mint>, e.g. http://127.0.0.1:3338/testnut.cashu.space
+08:07:53 paths without a mint host go to https://testnut.cashu.space
+
+$ M=http://127.0.0.1:3338/testnut.cashu.space
+
+$ cdk-cli -n -w alice mint $M 64
+Quote: id=01a1ce95-bf90-748b-8bdc-09edb4044257, state=UNPAID, amount=64, expiry=1794467882
+Please pay: lnbc640n1p402ewjdqqpp5ezzhwc5xxamvwxpu89x8jqslzegvsqsdtf9d7pjdavxj42wu2hwssp59g4z52329g4z52329g4z52329g4z52329g4z52329g4z52329g4q9qrsgqcqzysg564kweemn69vgeyglnpcvj99kwzt0zq8zdajra6fvwhrdtdy4g9wz52efpnj55npyznfe8vllr4anfag998mnder903wmn86624v3qpzch0vh
+Quote state: PAID
+Quote state: UNPAID
+Minted 64 sat (total: 64 sat)
+Received 64 from mint http://127.0.0.1:3338/testnut.cashu.space
+[12.26s]
+
+$ cdk-cli -n -w alice send --mint-url $M --amount 21
+cashuBo2FteClodHRwOi8vMTI3LjAuMC4xOjMzMzgvdGVzdG51dC5jYXNodS5zcGFjZWF1Y3NhdGF0gaJhaUgBe8YEqqCOm2Fwg6RhYQFhc3hAMzBiNzcwMDQzN2YwZTA2ZDFhYTUxNzhlMWQzYmE5ZjA0NjE5ZDRhNjQ3OGU4MmJhN2JhYTJjNGQzN2Y2ZWJlNmFjWCEC8WEbJhhWTq1EmjVQsapt0lxQry_o79GyHOjOh6ItO9RhZKNhZVggMOboghF5KF7w9LPR1rEVDSbdw7yc0FOy_UHDov0mWyZhc1ggV0n3qBA0CpPheyTZk_b5Equ68qO8OKmhGGSr-0l5XOphclggrgRyRIIXsIdKhv0twW8Qyyezud9J2LMtWsjds6yeDBSkYWEQYXN4QDE3NTBkY2EzNzg2MmE1ZTIwNDU5M2Q5M2JiNzFjMDNhMzRkMTI0YTFiMzc5ODQ5OGRiMjkyMWY4ZTQ1ODU4Y2NhY1ghA3RSiFxc8le-SsXSAL-XSdGz23NdNYLMbDFc4dnSZxQjYWSjYWVYIAW7Q9AONHuITYzHnZUhniMPd8h2Wk675zrsv4buO43SYXNYIJgMhNMD-DHYsyqpzpjC1Y5-xl0dqjz_Q9uqHxuPwlfGYXJYIJ5QS4wB_o6zX1G2IplZiTBqnNO2nhPC9Z60txWdbGuPpGFhBGFzeEBjNTk0ODg2OGQ5NmZmM2ZlZjFmN2U0ZTFhMThmMjQ1OTNmMzk3Y2ZlYzU3NTE4OTY2NDM0ZTJmYzg1MzQ5NjFkYWNYIQLxfItNW64JkZUbV-OyhDLa0NdDd2ypXl8L51HXHM0ZFGFko2FlWCAlnTeFZQ8K9eQeFCat6d8V-U0L7vohRGIuZ5CMIPYkxWFzWCC042lewrbmRBdADGqq1SckFuL3WA6ibOtj06W0RNXvLmFyWCBreGnkdGv8LarnPCJb0wAgpo5lIxaeIfa3MUSTWmCzUQ==
+[0.02s]
+
+$ cdk-cli -n -w bob receive --allow-untrusted $(cat token.txt)
+Received: 20
+[6.26s]
+
+$ cashumix checkstate token.txt
+Y                                                                   AMOUNT  KEYSET            STATE
+025a62a6d2051680e755e395b5775aece561c76f9df122fd8ffa51560f8cc0d2df  1       017bc604aaa08e9b  SPENT
+02ae7ed925a58b25a8f60598725086ea7ab4348455c10fbf99426237e162150803  16      017bc604aaa08e9b  SPENT
+024e94000f0ca0cda5a2c001b7591fc461f045af05121847ee45e170e15270d346  4       017bc604aaa08e9b  SPENT
+3 proofs at https://testnut.cashu.space: 21 sat SPENT (checked over the mixnet in 5.32s)
+[5.32s]
+
+$ cdk-cli -n -w bob balance
+0: http://127.0.0.1:3338/testnut.cashu.space 20 sat
+
+Total balance across all wallets: 20 sat
+[0.02s]
+
+$ cat gateway.log
+08:07:53 cashumix 0.1.0 gateway on http://127.0.0.1:3338  ->  Nym mixnet via socks5 127.0.0.1:1080, dns=doh  ->  https mints
+08:07:53 set your wallet's mint URL to http://127.0.0.1:3338/<mint>, e.g. http://127.0.0.1:3338/testnut.cashu.space
+08:07:53 paths without a mint host go to https://testnut.cashu.space
+08:07:59 GET testnut.cashu.space/v1/info -> 200, 3349 bytes, 4.25s
+08:07:59 GET testnut.cashu.space/v1/keysets -> 200, 259 bytes, 0.71s
+08:08:01 GET testnut.cashu.space/v1/keys/017bc604aaa08e9b58804bdd552286f15d75ebdaa3d1bccc2a52fc7406b4040fda -> 200, 2616 bytes, 1.08s
+08:08:02 GET testnut.cashu.space/v1/keys/010eca897fd3b9d496c4ef28de870727ef616cb0a05404035c65cf5cc6fa879504 -> 200, 2616 bytes, 1.06s
+08:08:03 POST testnut.cashu.space/v1/mint/quote/bolt11 -> 200, 527 bytes, 1.13s
+08:08:07 POST testnut.cashu.space/v1/mint/bolt11 -> 200, 4697 bytes, 0.93s
+08:08:08 GET testnut.cashu.space/v1/info -> 200, 3349 bytes, 0.90s
+08:08:08 GET testnut.cashu.space/v1/keysets -> 200, 259 bytes, 0.80s
+08:08:11 GET testnut.cashu.space/v1/keys/017bc604aaa08e9b58804bdd552286f15d75ebdaa3d1bccc2a52fc7406b4040fda -> 200, 2616 bytes, 2.54s
+08:08:12 GET testnut.cashu.space/v1/keys/010eca897fd3b9d496c4ef28de870727ef616cb0a05404035c65cf5cc6fa879504 -> 200, 2616 bytes, 0.78s
+08:08:12 GET testnut.cashu.space/v1/ws -> 101, 0 bytes, 9.52s (websocket)
+08:08:13 POST testnut.cashu.space/v1/swap -> 200, 3136 bytes, 1.16s
+08:08:18 gateway stopped

@@ -1,5 +1,7 @@
 # cashumix
 
+[![ci](https://github.com/apeirs/cashumix/actions/workflows/ci.yml/badge.svg)](https://github.com/apeirs/cashumix/actions/workflows/ci.yml)
+
 Cashu wallet traffic through the [Nym mixnet](https://nym.com), so the mint can't link your
 mint, melt, swap and check-state requests to your IP address. Works with unmodified wallets:
 tested with nutshell, cdk-cli and the cashu.me web wallet.
@@ -10,6 +12,11 @@ wallet ──http──> cashumix gateway ──SOCKS5──> nym-socks5-client 
  cdk-cli,
  cashu.me)
 ```
+
+[![A recorded session: cdk-cli mints 64 sat, sends 21 and receives them on testnut.cashu.space, every request going through the cashumix gateway and the Nym mixnet; checkstate then shows the proofs SPENT](docs/demo.svg)](examples/live-2026-11-12.txt)
+
+*A real session from 2026-11-12, condensed and played about 3× faster; the timings shown are the
+recorded ones. Full log: [examples/live-2026-11-12.txt](examples/live-2026-11-12.txt).*
 
 ## Why
 
@@ -377,9 +384,14 @@ nym            runs the official nym-socks5-client
 internal/fakes offline SOCKS5 proxy, DoH resolver and mint for tests
 ```
 
-The `mixnet` and `nym` packages come from apeir's
-[nostrmix](https://github.com/apeirs/nostrmix) and [zecmix](https://github.com/apeirs/zecmix),
-which do the same for Nostr relays and Zcash lightwalletd.
+## Built for Nut November 2026
+
+Everything Cashu here (the gateway, the `cashu` package, the CLI, the tests and the live runs)
+was written in November 2026; the first commit is from 2026-11-05. What existed before
+November 1: the `mixnet` and `nym` packages, which come from apeir's
+[nostrmix](https://github.com/apeirs/nostrmix) and [zecmix](https://github.com/apeirs/zecmix)
+(October 2026). They do the same job for Nostr relays and Zcash lightwalletd: SOCKS5 to
+`nym-socks5-client`, DNS over HTTPS through the mixnet, and running the official Nym client.
 
 ## License
 
